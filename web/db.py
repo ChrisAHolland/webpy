@@ -2,14 +2,13 @@
 Database API
 (part of web.py)
 """
-from __future__ import print_function
 
 import datetime
 import os
 import re
 import time
 
-from .py3helpers import PY2, iteritems, numeric_types, string_types, text_type
+from .py3helpers import iteritems
 from .utils import iters, safestr, safeunicode, storage, threadeddict
 
 try:
@@ -55,8 +54,8 @@ TOKEN = "[ \\f\\t]*(\\\\\\r?\\n[ \\f\\t]*)*(#[^\\r\\n]*)?(((\\d+[jJ]|((\\d+\\.\\
 tokenprog = re.compile(TOKEN)
 
 # Supported db drivers.
-pg_drivers = ["psycopg2", "psycopg", "pgdb"]
-mysql_drivers = ["MySQLdb", "pymysql", "mysql.connector"]
+pg_drivers = ["psycopg2"]
+mysql_drivers = ["pymysql", "mysql.connector"]
 sqlite_drivers = ["sqlite3", "pysqlite2.dbapi2", "sqlite"]
 
 
@@ -185,7 +184,7 @@ class SQLQuery(object):
         self.items.append(value)
 
     def __add__(self, other):
-        if isinstance(other, string_types):
+        if isinstance(other, str):
             items = [other]
         elif isinstance(other, SQLQuery):
             items = other.items
@@ -194,7 +193,7 @@ class SQLQuery(object):
         return SQLQuery(self.items + items)
 
     def __radd__(self, other):
-        if isinstance(other, string_types):
+        if isinstance(other, str):
             items = [other]
         elif isinstance(other, SQLQuery):
             items = other.items
@@ -203,7 +202,7 @@ class SQLQuery(object):
         return SQLQuery(items + self.items)
 
     def __iadd__(self, other):
-        if isinstance(other, (string_types, SQLParam)):
+        if isinstance(other, (str, SQLParam)):
             self.items.append(other)
         elif isinstance(other, SQLQuery):
             self.items.extend(other.items)
@@ -396,14 +395,11 @@ def sqlify(obj):
         return "'t'"
     elif obj is False:
         return "'f'"
-    elif isinstance(obj, numeric_types):
+    elif isinstance(obj, int):
         return str(obj)
     elif isinstance(obj, datetime.datetime):
         return repr(obj.isoformat())
     else:
-        if PY2 and isinstance(obj, text_type):  # Strings are always UTF8 in Py3
-            obj = obj.encode("utf8")
-
         return repr(obj)
 
 
@@ -416,7 +412,7 @@ def sqllist(lst):
         >>> sqllist('a')
         'a'
     """
-    if isinstance(lst, string_types):
+    if isinstance(lst, str):
         return lst
     else:
         return ", ".join(lst)
@@ -795,7 +791,7 @@ class DB:
         return query, params
 
     def _where(self, where, vars):
-        if isinstance(where, numeric_types):
+        if isinstance(where, int):
             where = "id = " + sqlparam(where)
         # @@@ for backward-compatibility
         elif isinstance(where, (list, tuple)) and len(where) == 2:
@@ -946,7 +942,7 @@ class DB:
         )
 
     def gen_clause(self, sql, val, vars):
-        if isinstance(val, numeric_types):
+        if isinstance(val, int):
             if sql == "WHERE":
                 nout = "id = " + sqlquote(val)
             else:
@@ -1205,8 +1201,6 @@ class PostgresDB(DB):
             import psycopg2.extensions
 
             psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
-        if db_module.__name__ == "pgdb" and "port" in keywords:
-            keywords["host"] += ":" + str(keywords.pop("port"))
 
         # if db is not provided `postgres` driver will take it from PGDATABASE
         # environment variable.
@@ -1240,20 +1234,12 @@ class PostgresDB(DB):
 
     def _connect(self, keywords):
         conn = DB._connect(self, keywords)
-        try:
-            conn.set_client_encoding("UTF8")
-        except AttributeError:
-            # fallback for pgdb driver
-            conn.cursor().execute("set client_encoding to 'UTF-8'")
+        conn.set_client_encoding("UTF8")
         return conn
 
     def _connect_with_pooling(self, keywords):
         conn = DB._connect_with_pooling(self, keywords)
-        try:
-            conn._con._con.set_client_encoding("UTF8")
-        except AttributeError:
-            # fallback for pgdb driver
-            conn.cursor().execute("set client_encoding to 'UTF-8'")
+        conn._con._con.set_client_encoding("UTF8")
         return conn
 
 
@@ -1262,15 +1248,15 @@ class MySQLDB(DB):
 
         db = import_driver(mysql_drivers, preferred=keywords.pop("driver", None))
 
-        if db.__name__ == "MySQLdb":
-            if "pw" in keywords:
-                keywords["passwd"] = keywords["pw"]
-                del keywords["pw"]
         if db.__name__ == "pymysql":
             if "pw" in keywords:
                 keywords["password"] = keywords["pw"]
                 del keywords["pw"]
+
         if db.__name__ == "mysql.connector":
+            # Enabled buffered so that len can work as expected.
+            keywords.setdefault("buffered", True)
+
             if "pw" in keywords:
                 keywords["password"] = keywords["pw"]
                 del keywords["pw"]
@@ -1280,7 +1266,7 @@ class MySQLDB(DB):
         elif keywords["charset"] is None:
             del keywords["charset"]
 
-        self.paramstyle = db.paramstyle = "pyformat"  # it's both, like psycopg
+        self.paramstyle = db.paramstyle = "pyformat"  # it's both
         self.dbname = "mysql"
         DB.__init__(self, db, keywords)
         self.supports_multiple_insert = True

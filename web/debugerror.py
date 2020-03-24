@@ -12,30 +12,23 @@ __all__ = ["debugerror", "djangoerror", "emailerrors"]
 
 import os
 import os.path
-import sys
 import pprint
+import sys
 import traceback
-from .template import Template
-from .net import websafe
-from .utils import sendmail, safestr
+
 from . import webapi as web
-from .py3helpers import PY2
-
-if PY2:
-
-    def update_globals_template(t, globals):
-        t.t.func_globals.update(globals)
+from .net import websafe
+from .template import Template
+from .utils import safestr, sendmail
 
 
-else:
-
-    def update_globals_template(t, globals):
-        t.t.__globals__.update(globals)
+def update_globals_template(t, globals):
+    t.t.__globals__.update(globals)
 
 
 whereami = os.path.join(os.getcwd(), __file__)
 whereami = os.path.sep.join(whereami.split(os.path.sep)[:-1])
-djangoerror_t = """\
+djangoerror_t = r"""\
 $def with (exception_type, exception_value, frames)
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html lang="en">

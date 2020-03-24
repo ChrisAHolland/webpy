@@ -2,34 +2,28 @@
 Web application
 (from web.py)
 """
-from __future__ import print_function
 
-from . import webapi as web
-from . import wsgi, utils, browser
-from .debugerror import debugerror
-from . import httpserver
-from .utils import lstrips
-from .py3helpers import iteritems, string_types, is_iter, PY2
-import sys
-
-import traceback
 import itertools
 import os
-from inspect import isclass
-
+import sys
+import traceback
 import wsgiref.handlers
+from inspect import isclass
+from io import BytesIO
 
-if PY2:
-    from urllib import splitquery, urlencode, unquote
-else:
-    from urllib.parse import urlparse, urlencode, unquote
+from . import browser, httpserver, utils
+from . import webapi as web
+from . import wsgi
+from .debugerror import debugerror
+from .py3helpers import is_iter, iteritems
+from .utils import lstrips
+
+from urllib.parse import urlparse, urlencode, unquote
 
 try:
     reload  # Python 2
 except NameError:
     from importlib import reload  # Python 3
-
-from io import BytesIO
 
 
 __all__ = [
@@ -220,12 +214,9 @@ class application:
         """
         # PY3DOCTEST: b'hello'
         # PY3DOCTEST: b'your user-agent is a small jumping bean/1.0 (compatible)'
-        if PY2:
-            path, maybe_query = splitquery(localpart)
-        else:
-            _p = urlparse(localpart)
-            path = _p.path
-            maybe_query = _p.query
+        _p = urlparse(localpart)
+        path = _p.path
+        maybe_query = _p.query
 
         query = maybe_query or ""
 
@@ -338,15 +329,10 @@ class application:
 
             def build_result(result):
                 for r in result:
-                    if PY2:
-                        yield utils.safestr(r)
+                    if isinstance(r, bytes):
+                        yield r
                     else:
-                        if isinstance(r, bytes):
-                            yield r
-                        elif isinstance(r, string_types):
-                            yield r.encode("utf-8")
-                        else:
-                            yield str(r).encode("utf-8")
+                        yield str(r).encode("utf-8")
 
             result = build_result(result)
 
@@ -471,10 +457,8 @@ class application:
         ctx.realhome = ctx.home
         ctx.ip = env.get("REMOTE_ADDR")
         ctx.method = env.get("REQUEST_METHOD")
-        if PY2:
-            ctx.path = env.get("PATH_INFO")
-        else:
-            ctx.path = env.get("PATH_INFO").encode("latin1").decode("utf8")
+        ctx.path = env.get("PATH_INFO").encode("latin1").decode("utf8")
+
         # http://trac.lighttpd.net/trac/ticket/406 requires:
         if env.get("SERVER_SOFTWARE", "").startswith("lighttpd/"):
             ctx.path = lstrips(env.get("REQUEST_URI").split("?")[0], ctx.homepath)
@@ -516,7 +500,7 @@ class application:
             return f.handle_with_processors()
         elif isclass(f):
             return handle_class(f)
-        elif isinstance(f, string_types):
+        elif isinstance(f, str):
             if f.startswith("redirect "):
                 url = f.split(" ", 1)[1]
                 if web.ctx.method == "GET":
@@ -544,7 +528,7 @@ class application:
                     return f, None
                 else:
                     continue
-            elif isinstance(what, string_types):
+            elif isinstance(what, str):
                 what, result = utils.re_subm(r"^%s\Z" % (pat,), what, value)
             else:
                 result = utils.re_compile(r"^%s\Z" % (pat,)).match(value)
@@ -677,7 +661,7 @@ class subdomain_application(application):
 
     def _match(self, mapping, value):
         for pat, what in mapping:
-            if isinstance(what, string_types):
+            if isinstance(what, str):
                 what, result = utils.re_subm("^" + pat + "$", what, value)
             else:
                 result = utils.re_compile("^" + pat + "$").match(value)

@@ -1,16 +1,10 @@
 """DB test"""
-from __future__ import print_function
 
 import importlib
 import os
 import unittest
 
 import web
-
-try:
-    unicode  # Python 2
-except NameError:
-    unicode = str  # Python 3
 
 
 def try_import(name):
@@ -48,16 +42,24 @@ def setup_database(dbname, driver=None, pooling=False):
     if dbname == "sqlite":
         db = web.database(dbn=dbname, db="webpy.db", pooling=pooling, driver=driver)
     elif dbname == "postgres":
-        user = os.getenv("USER")
         db = web.database(
-            dbn=dbname, db="webpy", user=user, pw="", pooling=pooling, driver=driver
+            dbn=dbname,
+            host=os.getenv("WEBPY_DB_HOST", "localhost"),
+            port=int(os.getenv("WEBPY_DB_PG_PORT", 5432)),
+            db=os.getenv("WEBPY_DB_NAME", "webpy"),
+            user=os.getenv("WEBPY_DB_USER", os.getenv("USER")),
+            pw=os.getenv("WEBPY_DB_PASSWORD", ""),
+            pooling=pooling,
+            driver=driver,
         )
     else:
         db = web.database(
             dbn=dbname,
-            db="webpy",
-            user="scott",
-            pw="tiger",
+            host=os.getenv("WEBPY_DB_HOST", "localhost"),
+            port=int(os.getenv("WEBPY_DB_MYSQL_PORT", 3306)),
+            db=os.getenv("WEBPY_DB_NAME", "webpy"),
+            user=os.getenv("WEBPY_DB_USER", os.getenv("USER")),
+            pw=os.getenv("WEBPY_DB_PASSWORD", ""),
             pooling=pooling,
             driver=driver,
         )
@@ -188,12 +190,6 @@ class DBTest(unittest.TestCase):
             ids = db.multiple_insert("mi", values)
             assert list(ids) == [4, 5, 6]
 
-    def test_result_is_unicode(self):
-        # TODO : not sure this test has still meaning with Py3
-        self.db.insert("person", False, name="user")
-        name = self.db.select("person")[0].name
-        self.assertEqual(type(name), unicode)
-
     def test_result_is_true(self):
         self.db.insert("person", False, name="user")
         self.assertEqual(bool(self.db.select("person")), True)
@@ -251,16 +247,6 @@ class PostgresTest2(DBTest):
         assert len(db.select("person").list()) == 1
 
 
-@requires_module("psycopg")
-class PostgresTest_psycopg(PostgresTest2):
-    driver = "psycopg"
-
-
-@requires_module("pgdb")
-class PostgresTest_pgdb(PostgresTest2):
-    driver = "pgdb"
-
-
 @requires_module("sqlite3")
 class SqliteTest(DBTest):
     dbname = "sqlite"
@@ -280,13 +266,13 @@ class SqliteTest_pysqlite2(SqliteTest):
     driver = "pysqlite2.dbapi2"
 
 
-@requires_module("MySQLdb")
-class MySQLTest_MySQLdb(DBTest):
+@requires_module("pymysql")
+class MySQLTest_PYMYSQL(DBTest):
     dbname = "mysql"
-    driver = "MySQLdb"
+    driver = "pymysql"
 
     def setUp(self):
-        self.db = setup_database(self.dbname)
+        self.db = setup_database(self.dbname, driver=self.driver)
         # In mysql, transactions are supported only with INNODB engine.
         self.db.query("CREATE TABLE person (name text, email text) ENGINE=INNODB")
 
@@ -295,13 +281,8 @@ class MySQLTest_MySQLdb(DBTest):
         pass
 
 
-@requires_module("pymysql")
-class MySQLTest_PyMySQL(MySQLTest_MySQLdb):
-    driver = "pymysql"
-
-
 @requires_module("mysql.connector")
-class MySQLTest_MySQLConnector(MySQLTest_MySQLdb):
+class MySQLTest_MySQLConnector(MySQLTest_PYMYSQL):
     driver = "mysql.connector"
 
 

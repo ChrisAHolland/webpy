@@ -3,28 +3,25 @@ Session Management
 (from web.py)
 """
 
+import datetime
 import os
 import os.path
-import time
-import datetime
 import threading
+import time
 from copy import deepcopy
+from hashlib import sha1
+
+from . import utils
+from . import webapi as web
+from .py3helpers import iteritems
 
 try:
     import cPickle as pickle
 except ImportError:
     import pickle
 
-from hashlib import sha1
 
-from . import utils
-from . import webapi as web
-from .py3helpers import PY2
-
-if PY2:
-    from base64 import encodestring as encodebytes, decodestring as decodebytes
-else:
-    from base64 import encodebytes, decodebytes
+from base64 import encodebytes, decodebytes
 
 
 __all__ = ["Session", "SessionExpired", "Store", "DiskStore", "DBStore"]
@@ -189,9 +186,7 @@ class Session(object):
             secret_key = self._config.secret_key
 
             hashable = "%s%s%s%s" % (rand, now, utils.safestr(web.ctx.ip), secret_key)
-            # TODO maybe a better way to deal with this, without using an if-statement
-            session_id = sha1(hashable if PY2 else hashable.encode("utf-8"))
-            session_id = session_id.hexdigest()
+            session_id = sha1(hashable.encode("utf-8")).hexdigest()
             if session_id not in self.store:
                 break
         return session_id
@@ -407,6 +402,48 @@ class ShelfStore:
             atime, v = self.shelf[k]
             if now - atime > timeout:
                 del self[k]
+
+
+class MemoryStore(Store):
+    """Store for saving a session in memory.
+    Useful where there is limited fs writes on the disk, like
+    flash memories
+
+    Data will be saved into a dict:
+    k: (time, pydata)
+    """
+
+    def __init__(self, d_store=None):
+        if d_store is None:
+            d_store = {}
+        self.d_store = d_store
+
+    def __contains__(self, key):
+        return key in self.d_store
+
+    def __getitem__(self, key):
+        """ Return the value and update the last seen value
+        """
+        t, value = self.d_store[key]
+        self.d_store[key] = (time.time(), value)
+        return value
+
+    def __setitem__(self, key, value):
+        self.d_store[key] = (time.time(), value)
+
+    def __delitem__(self, key):
+        del self.d_store[key]
+
+    def cleanup(self, timeout):
+        now = time.time()
+        to_del = []
+        for k, (atime, value) in iteritems(self.d_store):
+            if now - atime > timeout:
+                to_del.append(k)
+
+        # to avoid exception on "dict change during iterations"
+        for k in to_del:
+            del self.d_store[k]
 
 
 if __name__ == "__main__":

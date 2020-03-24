@@ -3,14 +3,16 @@ Outputs web.py docs as html
 version 2.0: documents all code, and indents nicely.
 By Colin Rothwell (TheBoff)
 """
-from __future__ import print_function
-import sys
+
 import inspect
+import sys
+
 import markdown
+
+from web.net import websafe
 
 sys.path.insert(0, "..")
 
-from web.net import websafe
 
 ALL_MODULES = [
     "web.application",

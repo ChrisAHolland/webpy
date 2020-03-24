@@ -27,8 +27,18 @@ Grammar:
     expr -> '$' pyexpr | '$(' pyexpr ')' | '${' pyexpr '}'
     pyexpr -> <python expression>
 """
-from __future__ import print_function
+
+import ast
+import glob
+import os
+import sys
+import tokenize
 from io import open
+import builtins
+
+from .net import websafe
+from .utils import re_compile, safestr, safeunicode, storage
+from .webapi import config
 
 __all__ = [
     "Template",
@@ -40,27 +50,8 @@ __all__ = [
     "test",
 ]
 
-import tokenize
-import os
-import sys
-import glob
-import ast
 
-from .utils import storage, safeunicode, safestr, re_compile
-from .webapi import config
-from .net import websafe
-from .py3helpers import PY2
-
-if PY2:
-    from UserDict import DictMixin
-
-    # Make a new-style class
-    class MutableMapping(object, DictMixin):
-        pass
-
-
-else:
-    from collections.abc import MutableMapping
+from collections.abc import MutableMapping
 
 
 def splitline(text):
@@ -365,8 +356,6 @@ class Parser:
                 self.position += 1
                 return self.current_item
 
-            next = __next__  # Needed for Py2 compatibility
-
         tokens = BetterIter(get_tokens(text))
 
         if tokens.lookahead().value in parens:
@@ -546,8 +535,6 @@ class PythonTokenizer:
         row, col = end
         self.index = col
         return storage(type=type, value=t, begin=begin, end=end)
-
-    next = __next__  # needed for Py2 compatibility
 
 
 class DefwithNode:
@@ -795,10 +782,6 @@ TEMPLATE_BUILTIN_NAMES = [
     "__import__",  # some c-libraries like datetime requires __import__ to present in the namespace
 ]
 
-if PY2:
-    import __builtin__ as builtins
-else:
-    import builtins
 TEMPLATE_BUILTINS = dict(
     [
         (name, getattr(builtins, name))
@@ -893,7 +876,7 @@ class BaseTemplate:
         return env["__template__"]
 
     def __call__(self, *a, **kw):
-        __hidetraceback__ = True
+        __hidetraceback__ = True  # noqa: F841
         return self.t(*a, **kw)
 
     def make_env(self, globals, builtins):
@@ -977,7 +960,7 @@ class Template(BaseTemplate):
     normalize_text = staticmethod(normalize_text)
 
     def __call__(self, *a, **kw):
-        __hidetraceback__ = True
+        __hidetraceback__ = True  # noqa: F841
         from . import webapi as web
 
         if "headers" in web.ctx and self.content_type:
@@ -1019,7 +1002,6 @@ class Template(BaseTemplate):
             compiled_code = compile(code, filename, "exec")
         except SyntaxError as err:
             # display template line that caused the error along with the traceback.
-            # this works in Py3 but not Py2, duh ? TODO
             err.msg += "\n\nTemplate traceback:\n    File %s, line %s\n        %s" % (
                 repr(err.filename),
                 err.lineno,
@@ -1177,7 +1159,7 @@ class GAE_Render(Render):
 render = Render
 # setup render for Google App Engine.
 try:
-    from google import appengine
+    from google import appengine  # noqa: F401
 
     render = Render = GAE_Render
 except ImportError:
@@ -1249,96 +1231,94 @@ class SecurityError(Exception):
 
 
 ALLOWED_AST_NODES = [
-    "Interactive",
-    "Expression",
-    "Suite",
-    "FunctionDef",
-    "ClassDef",
-    "Return",
-    "Delete",
+    "Add",
+    "And",
     "Assign",
-    "AugAssign",
-    "alias",
-    #'Print', 'Repr',
-    "For",
-    "While",
-    "If",
-    "With",
-    "comprehension",
-    "NameConstant",
-    "Constant",
-    "arg",
-    #'Raise', 'TryExcept', 'TryFinally', 'Assert', 'Import',
-    #'ImportFrom', 'Exec', 'Global',
-    "Expr",
-    "Pass",
-    "Break",
-    "Continue",
-    "BoolOp",
-    "BinOp",
-    "UnaryOp",
-    "Lambda",
-    "IfExp",
-    "Dict",
-    "Module",
-    "arguments",
-    "keyword",
-    "Set",
-    "ListComp",
-    "SetComp",
-    "DictComp",
-    "GeneratorExp",
-    "Yield",
-    "Compare",
-    "Call",
-    "Num",
-    "Str",
-    "JoinedStr",
     "Attribute",
-    "Subscript",
-    "Name",
-    "List",
-    "Tuple",
-    "Load",
-    "Store",
-    "Del",
+    "AugAssign",
     "AugLoad",
     "AugStore",
-    "Param",
-    "Ellipsis",
-    "Slice",
-    "ExtSlice",
-    "Index",
-    "And",
-    "Or",
-    "Add",
-    "Sub",
-    "Mult",
-    "Div",
-    "Mod",
-    "Pow",
-    "LShift",
-    "RShift",
+    "BinOp",
+    "BitAnd",
     "BitOr",
     "BitXor",
-    "BitAnd",
-    "FloorDiv",
-    "Invert",
-    "Not",
-    "UAdd",
-    "USub",
+    "BoolOp",
+    "Break",
+    "Call",
+    "ClassDef",
+    "Compare",
+    "Constant",
+    "Continue",
+    "Del",
+    "Delete",
+    "Dict",
+    "DictComp",
+    "Div",
+    "Ellipsis",
     "Eq",
-    "NotEq",
-    "Lt",
-    "LtE",
+    "ExceptHandler",
+    "Expr",
+    "Expression",
+    "ExtSlice",
+    "FloorDiv",
+    "For",
+    "FunctionDef",
+    "GeneratorExp",
     "Gt",
     "GtE",
+    "If",
+    "IfExp",
+    "In",
+    "Index",
+    "Interactive",
+    "Invert",
     "Is",
     "IsNot",
-    "In",
+    "JoinedStr",
+    "LShift",
+    "Lambda",
+    "List",
+    "ListComp",
+    "Load",
+    "Lt",
+    "LtE",
+    "Mod",
+    "Module",
+    "Mult",
+    "Name",
+    "NameConstant",
+    "Not",
+    "NotEq",
     "NotIn",
-    "ExceptHandler",
+    "Num",
+    "Or",
+    "Param",
+    "Pass",
+    "Pow",
+    "RShift",
+    "Return",
+    "Set",
+    "SetComp",
+    "Slice",
+    "Store",
+    "Str",
+    "Sub",
+    "Subscript",
+    "Suite",
+    "Tuple",
+    "UAdd",
+    "USub",
+    "UnaryOp",
+    "While",
+    "With",
+    "Yield",
+    "alias",
+    "arg",
+    "arguments",
+    "comprehension",
+    "keyword",
 ]
+# Assert Exec Global Import ImportFrom Print Raise Repr TryExcept TryFinally
 
 
 class SafeVisitor(ast.NodeVisitor):
@@ -1511,10 +1491,7 @@ class TemplateResult(MutableMapping):
 
     def __str__(self):
         self._prepare_body()
-        if PY2:
-            return self["__body__"].encode("utf-8")
-        else:
-            return self["__body__"]
+        return self["__body__"]
 
     def __repr__(self):
         self._prepare_body()
@@ -1538,7 +1515,7 @@ def test():
         >>> class TestResult:
         ...     def __init__(self, t): self.t = t
         ...     def __getattr__(self, name): return getattr(self.t, name)
-        ...     def __repr__(self): return repr(unicode(self.t) if PY2 else str(self.t))
+        ...     def __repr__(self): return str(self.t)
         ...
         >>> def t(code, **keywords):
         ...     tmpl = Template(code, **keywords)

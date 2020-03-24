@@ -1,10 +1,27 @@
 # web.py changelog
 
-## 2020-XX-XX 0.50
+## 2020-XX-YY 1.0
 
+* Python-2 support has been completely dropped. Welcome to Python 3.
+* Remove support for MySQL driver `MySQLdb`, it doesn't work with py3 at all.
+
+Supported SQL drivers:
+
+- MySQL: pymysql, mysql.connector.
+- PostgreSQL: psycopg2.
+
+## 2020-03-20 0.50
+
+* New session store `MemoryStore`, used to save a session in memory.
+  Should be useful where there are limited fs writes to the disk, like
+  flash memories. #174
 * Fixed: not support `samesite=none`. #592
 * Fixed Python-3 compatibility issues: #574, #576.
 * Support tuple and set in `sqlquote()`.
+* Drop support for SQL driver `pgdb`. It was dead, you cannot even find its
+  website or download link.
+* Drop support for SQL driver `psycopg`. The latest version was released in
+  2006 (14 years ago), please use `psycopg2` instead.
 * Removed function `web.safemarkdown`. if it's used in your application, you
   can install the `Markdown` module from pypi
   (https://pypi.org/project/Markdown/), then replace `web.safemarkdown()` by

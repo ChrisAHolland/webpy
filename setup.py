@@ -1,7 +1,9 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os
+
 from setuptools import setup
+
 from web import __version__
 
 rootdir = os.path.abspath(os.path.dirname(__file__))
@@ -26,12 +28,12 @@ setup(
     license="Public domain",
     platforms=["any"],
     classifiers=[
+        "License :: Public Domain",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 2",
-        "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
     ],
 )
